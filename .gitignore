@@ -33,3 +33,17 @@ yarn-error.*
 
 # typescript
 *.tsbuildinfo
+
+# EAS Build
+.easignore
+
+# Build artifacts
+dist/
+build/
+*.ipa
+*.apk
+
+# Environment files
+.env
+.env.local
+.env.production
