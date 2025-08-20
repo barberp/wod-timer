@@ -65,8 +65,26 @@ export default function TimerScreen() {
     const updateOrientation = () => {
       const { width, height } = Dimensions.get('window');
       setDimensions(Dimensions.get('window'));
-      const newIsLandscape = width > height;
-      console.log('Orientation changed:', { width, height, isLandscape: newIsLandscape });
+      
+      // Force portrait mode on web for now
+      let newIsLandscape = false;
+      if (Platform.OS === 'web') {
+        // On web, always start in portrait mode
+        newIsLandscape = false;
+        console.log('Web detected - forcing portrait mode');
+      } else {
+        // For mobile, use the standard width > height check
+        newIsLandscape = width > height;
+      }
+      
+      console.log('Orientation update:', { 
+        width, 
+        height, 
+        isLandscape: newIsLandscape, 
+        platform: Platform.OS,
+        webWidth: Platform.OS === 'web' ? window.innerWidth : 'N/A',
+        webHeight: Platform.OS === 'web' ? window.innerHeight : 'N/A'
+      });
       setIsLandscape(newIsLandscape);
     };
 
@@ -75,6 +93,20 @@ export default function TimerScreen() {
 
     // Listen for orientation changes
     const subscription = Dimensions.addEventListener('change', updateOrientation);
+
+    // For web, also listen to window resize events
+    if (Platform.OS === 'web') {
+      const handleResize = () => {
+        console.log('Web window resized');
+        setTimeout(updateOrientation, 100);
+      };
+      window.addEventListener('resize', handleResize);
+      
+      return () => {
+        subscription?.remove();
+        window.removeEventListener('resize', handleResize);
+      };
+    }
 
     return () => {
       subscription?.remove();
@@ -162,24 +194,27 @@ export default function TimerScreen() {
     }
   };
 
+  // Force portrait mode on web
+  const effectiveIsLandscape = Platform.OS === 'web' ? false : isLandscape;
+
   return (
-    <View style={[styles.container, isLandscape && styles.containerLandscape]}>
-      {!isLandscape ? (
+    <View style={[styles.container, effectiveIsLandscape && styles.containerLandscape]}>
+      {!effectiveIsLandscape ? (
         // Portrait mode - full interface
         <>
                 <View style={styles.header}>
         <Text style={styles.title}>Timer</Text>
-        <TouchableOpacity 
-          style={styles.debugButton} 
-          onPress={() => {
-            const { width, height } = Dimensions.get('window');
-            const newIsLandscape = width > height;
-            console.log('Manual check:', { width, height, isLandscape: newIsLandscape, currentState: isLandscape });
-            setIsLandscape(newIsLandscape);
-          }}
-        >
-          <Text style={styles.debugButtonText}>Debug: {isLandscape ? 'Landscape' : 'Portrait'}</Text>
-        </TouchableOpacity>
+                  <TouchableOpacity 
+            style={styles.debugButton} 
+            onPress={() => {
+              const { width, height } = Dimensions.get('window');
+              const newIsLandscape = width > height;
+              console.log('Manual check:', { width, height, isLandscape: newIsLandscape, currentState: isLandscape, effective: effectiveIsLandscape });
+              setIsLandscape(newIsLandscape);
+            }}
+          >
+            <Text style={styles.debugButtonText}>Debug: {effectiveIsLandscape ? 'Landscape' : 'Portrait'} (Web: {Platform.OS === 'web' ? 'Yes' : 'No'})</Text>
+          </TouchableOpacity>
       </View>
 
           <View style={styles.modeContainer}>
@@ -269,7 +304,7 @@ export default function TimerScreen() {
       )}
 
       <Modal
-        visible={showModeDropdown && !isLandscape}
+        visible={showModeDropdown && !effectiveIsLandscape}
         transparent={true}
         animationType="fade"
         onRequestClose={() => setShowModeDropdown(false)}
