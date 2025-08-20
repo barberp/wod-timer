@@ -7,9 +7,10 @@ import {
   StyleSheet,
   Platform,
   Alert,
+  Modal,
+  Dimensions,
 } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
-import { Play, Pause, Square, RotateCcw } from 'lucide-react-native';
+import { Play, Pause, Square, RotateCcw, ChevronDown } from 'lucide-react-native';
 
 type TimerMode = 'countUp' | 'countDown';
 type TimerState = 'stopped' | 'running' | 'paused';
@@ -20,8 +21,11 @@ export default function TimerScreen() {
   const [currentTime, setCurrentTime] = useState(0); // in seconds
   const [inputTime, setInputTime] = useState('5:00'); // input for countdown
   const [startTime, setStartTime] = useState(0);
+  const [showModeDropdown, setShowModeDropdown] = useState(false);
+  const [isLandscape, setIsLandscape] = useState(false);
+  const [dimensions, setDimensions] = useState(Dimensions.get('window'));
   
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const intervalRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (state === 'running') {
@@ -55,6 +59,27 @@ export default function TimerScreen() {
       }
     };
   }, [state, mode]);
+
+  // Handle orientation changes
+  useEffect(() => {
+    const updateOrientation = () => {
+      const { width, height } = Dimensions.get('window');
+      setDimensions(Dimensions.get('window'));
+      const newIsLandscape = width > height;
+      console.log('Orientation changed:', { width, height, isLandscape: newIsLandscape });
+      setIsLandscape(newIsLandscape);
+    };
+
+    // Set initial orientation
+    updateOrientation();
+
+    // Listen for orientation changes
+    const subscription = Dimensions.addEventListener('change', updateOrientation);
+
+    return () => {
+      subscription?.remove();
+    };
+  }, []);
 
   const parseTimeInput = (input: string): number => {
     const parts = input.split(':');
@@ -138,75 +163,160 @@ export default function TimerScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
+    <View style={[styles.container, isLandscape && styles.containerLandscape]}>
+      {!isLandscape ? (
+        // Portrait mode - full interface
+        <>
+                <View style={styles.header}>
         <Text style={styles.title}>Timer</Text>
+        <TouchableOpacity 
+          style={styles.debugButton} 
+          onPress={() => {
+            const { width, height } = Dimensions.get('window');
+            const newIsLandscape = width > height;
+            console.log('Manual check:', { width, height, isLandscape: newIsLandscape, currentState: isLandscape });
+            setIsLandscape(newIsLandscape);
+          }}
+        >
+          <Text style={styles.debugButtonText}>Debug: {isLandscape ? 'Landscape' : 'Portrait'}</Text>
+        </TouchableOpacity>
       </View>
 
-      <View style={styles.modeContainer}>
-        <Text style={styles.label}>Mode:</Text>
-        <View style={styles.pickerContainer}>
-          <Picker
-            selectedValue={mode}
-            onValueChange={handleModeChange}
-            style={styles.picker}
-            itemStyle={styles.pickerItem}
-          >
-            <Picker.Item label="Count Up" value="countUp" />
-            <Picker.Item label="Count Down" value="countDown" />
-          </Picker>
-        </View>
-      </View>
+          <View style={styles.modeContainer}>
+            <Text style={styles.label}>Mode:</Text>
+            <TouchableOpacity
+              style={styles.dropdownButton}
+              onPress={() => setShowModeDropdown(true)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.dropdownButtonText}>
+                {mode === 'countUp' ? 'Count Up' : 'Count Down'}
+              </Text>
+              <ChevronDown size={20} color="#8E8E93" />
+            </TouchableOpacity>
+          </View>
 
-      {mode === 'countDown' && (
-        <View style={styles.inputContainer}>
-          <Text style={styles.label}>Set Time (MM:SS):</Text>
-          <TextInput
-            style={styles.timeInput}
-            value={inputTime}
-            onChangeText={setInputTime}
-            placeholder="5:00"
-            editable={state === 'stopped'}
-          />
-        </View>
+          {mode === 'countDown' && (
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>Set Time (MM:SS):</Text>
+              <TextInput
+                style={styles.timeInput}
+                value={inputTime}
+                onChangeText={setInputTime}
+                placeholder="5:00"
+                editable={state === 'stopped'}
+              />
+            </View>
+          )}
+
+          <View style={styles.timerContainer}>
+            <Text style={styles.timerDisplay}>{formatTime(currentTime)}</Text>
+          </View>
+
+          <View style={styles.controlsContainer}>
+            {state === 'stopped' ? (
+              <TouchableOpacity style={styles.primaryButton} onPress={handleStart}>
+                <Play size={24} color="white" />
+                <Text style={styles.primaryButtonText}>Start</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity style={styles.primaryButton} onPress={handlePause}>
+                {state === 'running' ? (
+                  <Pause size={24} color="white" />
+                ) : (
+                  <Play size={24} color="white" />
+                )}
+                <Text style={styles.primaryButtonText}>
+                  {state === 'running' ? 'Pause' : 'Resume'}
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            <TouchableOpacity style={styles.secondaryButton} onPress={handleStop}>
+              <Square size={20} color="#FF3B30" />
+              <Text style={styles.secondaryButtonText}>Stop</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.secondaryButton} onPress={handleReset}>
+              <RotateCcw size={20} color="#007AFF" />
+              <Text style={styles.secondaryButtonText}>Reset</Text>
+            </TouchableOpacity>
+          </View>
+        </>
+      ) : (
+        // Landscape mode - full screen timer
+        <TouchableOpacity
+          style={styles.landscapeContainer}
+          activeOpacity={1}
+          onPress={() => {
+            if (state === 'running') {
+              handlePause();
+            } else if (state === 'paused') {
+              handlePause();
+            }
+          }}
+        >
+          <View style={styles.landscapeTimerContainer}>
+            <Text style={styles.landscapeTimerDisplay}>{formatTime(currentTime)}</Text>
+            {state === 'running' && (
+              <Text style={styles.landscapeTapHint}>Tap anywhere to pause</Text>
+            )}
+            {state === 'paused' && (
+              <Text style={styles.landscapeTapHint}>Tap anywhere to resume</Text>
+            )}
+          </View>
+        </TouchableOpacity>
       )}
 
-      <View style={styles.timerContainer}>
-        <Text style={styles.timerDisplay}>{formatTime(currentTime)}</Text>
-        <Text style={styles.timerMode}>
-          {mode === 'countUp' ? 'Counting Up' : 'Counting Down'}
-        </Text>
-      </View>
-
-      <View style={styles.controlsContainer}>
-        {state === 'stopped' ? (
-          <TouchableOpacity style={styles.primaryButton} onPress={handleStart}>
-            <Play size={24} color="white" />
-            <Text style={styles.primaryButtonText}>Start</Text>
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity style={styles.primaryButton} onPress={handlePause}>
-            {state === 'running' ? (
-              <Pause size={24} color="white" />
-            ) : (
-              <Play size={24} color="white" />
-            )}
-            <Text style={styles.primaryButtonText}>
-              {state === 'running' ? 'Pause' : 'Resume'}
-            </Text>
-          </TouchableOpacity>
-        )}
-
-        <TouchableOpacity style={styles.secondaryButton} onPress={handleStop}>
-          <Square size={20} color="#FF3B30" />
-          <Text style={styles.secondaryButtonText}>Stop</Text>
+      <Modal
+        visible={showModeDropdown && !isLandscape}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowModeDropdown(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowModeDropdown(false)}
+        >
+          <View style={styles.dropdownModal}>
+            <TouchableOpacity
+              style={[
+                styles.dropdownOption,
+                mode === 'countUp' && styles.dropdownOptionSelected
+              ]}
+              onPress={() => {
+                handleModeChange('countUp');
+                setShowModeDropdown(false);
+              }}
+            >
+              <Text style={[
+                styles.dropdownOptionText,
+                mode === 'countUp' && styles.dropdownOptionTextSelected
+              ]}>
+                Count Up
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.dropdownOption,
+                mode === 'countDown' && styles.dropdownOptionSelected
+              ]}
+              onPress={() => {
+                handleModeChange('countDown');
+                setShowModeDropdown(false);
+              }}
+            >
+              <Text style={[
+                styles.dropdownOptionText,
+                mode === 'countDown' && styles.dropdownOptionTextSelected
+              ]}>
+                Count Down
+              </Text>
+            </TouchableOpacity>
+          </View>
         </TouchableOpacity>
-
-        <TouchableOpacity style={styles.secondaryButton} onPress={handleReset}>
-          <RotateCcw size={20} color="#007AFF" />
-          <Text style={styles.secondaryButtonText}>Reset</Text>
-        </TouchableOpacity>
-      </View>
+      </Modal>
     </View>
   );
 }
@@ -216,6 +326,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F8F9FA',
     paddingTop: Platform.OS === 'ios' ? 60 : 40,
+    ...Platform.select({
+      ios: {
+        paddingBottom: 20,
+      },
+    }),
   },
   header: {
     alignItems: 'center',
@@ -225,6 +340,18 @@ const styles = StyleSheet.create({
     fontSize: 32,
     fontWeight: '700',
     color: '#1D1D1F',
+  },
+  debugButton: {
+    backgroundColor: '#007AFF',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginTop: 12,
+  },
+  debugButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
   },
   modeContainer: {
     marginHorizontal: 20,
@@ -236,11 +363,16 @@ const styles = StyleSheet.create({
     color: '#1D1D1F',
     marginBottom: 8,
   },
-  pickerContainer: {
+  dropdownButton: {
     backgroundColor: 'white',
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#E1E5E9',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     ...Platform.select({
       ios: {
         shadowColor: '#000',
@@ -253,13 +385,90 @@ const styles = StyleSheet.create({
       },
     }),
   },
-  picker: {
-    height: 50,
-  },
-  pickerItem: {
+  dropdownButtonText: {
     fontSize: 16,
     color: '#1D1D1F',
+    fontWeight: '500',
   },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  dropdownModal: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    overflow: 'hidden',
+    minWidth: 200,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 8,
+      },
+    }),
+  },
+  dropdownOption: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  dropdownOptionSelected: {
+    backgroundColor: '#F0F8FF',
+  },
+  dropdownOptionText: {
+    fontSize: 16,
+    color: '#1D1D1F',
+    textAlign: 'center',
+  },
+  dropdownOptionTextSelected: {
+    color: '#007AFF',
+    fontWeight: '600',
+  },
+  containerLandscape: {
+    paddingTop: 20,
+    paddingBottom: 20,
+  },
+  landscapeContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 40,
+  },
+  landscapeTimerContainer: {
+    alignItems: 'center',
+    marginBottom: 60,
+  },
+  landscapeTimerDisplay: {
+    fontSize: 240,
+    fontWeight: '500',
+    color: '#007AFF',
+    fontFamily: Platform.select({
+      ios: 'Menlo',
+      android: 'monospace',
+      web: 'Monaco, Consolas, monospace',
+    }),
+    textAlign: 'center',
+  },
+  landscapeTimerMode: {
+    fontSize: 24,
+    color: '#8E8E93',
+    marginTop: 16,
+  },
+  landscapeTapHint: {
+    fontSize: 18,
+    color: '#8E8E93',
+    marginTop: 20,
+    textAlign: 'center',
+    opacity: 0.8,
+  },
+
   inputContainer: {
     marginHorizontal: 20,
     marginBottom: 40,
@@ -288,8 +497,13 @@ const styles = StyleSheet.create({
   },
   timerContainer: {
     alignItems: 'center',
-    marginVertical: 10,
+    marginVertical: 20,
     paddingHorizontal: 20,
+    ...Platform.select({
+      ios: {
+        zIndex: 1,
+      },
+    }),
   },
   timerDisplay: {
     fontSize: 40,
