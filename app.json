@@ -11,6 +11,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.barberp.wodtimer",
       "buildNumber": "2",
+      "icon": "./assets/images/icon.png",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "This app does not use camera access",
@@ -24,7 +25,8 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#F8F9FA"
-      }
+      },
+      "icon": "./assets/images/icon.png"
     },
     "web": {
       "bundler": "metro",
